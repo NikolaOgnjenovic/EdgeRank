@@ -164,9 +164,9 @@ def run_search(graph, sentence_trie, username, statuses):
         search_input = input("Enter the term that you wish to search for\n>>")
         # Word autocompletion
         if search_input[-1] == '*':
-            autocompleted_words = sentence_trie.autocomplete(search_input)
+            autocompleted_words: (str, int) = sentence_trie.autocomplete(search_input)
             print("Autocompleted words:")
-            for word in autocompleted_words:
+            for word, occurrence in autocompleted_words:
                 print(word)
         else:
             if search_input == '':

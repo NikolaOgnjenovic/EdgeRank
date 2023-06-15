@@ -103,14 +103,18 @@ class Trie(object):
             if char not in node.children:
                 return []
             node = node.children[char]
-        return self.get_words_from_prefix(node, prefix)
 
-    def get_words_from_prefix(self, node, prefix):
+        # Sort the words-occurrence pair list by the occurrence descending
+        words = self.get_words_from_prefix(node, prefix)
+        words.sort(key=lambda w: w[1], reverse=True)
+        return words
+
+    # Returns a list of pairs (word, occurrences in trie) that contain the given prefix
+    def get_words_from_prefix(self, node, prefix) -> list[(str, int)]:
         words = []
         # If the node marks the end of a word, add a space to the prefix and add it the word list
         if node.is_terminal:
-            # prefix += ' '
-            words.append(prefix)
+            words.append((prefix, node.counter))
         # For each child, add the child's character to the prefix and iterate deeper
         for char, child in node.children.items():
             words.extend(self.get_words_from_prefix(child, prefix + char))
@@ -146,7 +150,6 @@ class Trie(object):
                         break
 
                 if should_add:
-                    # filtered_ids.update({status_id: 1})
                     filtered_ids.append(status_id)
             except ValueError:
                 continue
