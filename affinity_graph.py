@@ -2,6 +2,7 @@ import pickle
 
 import networkx
 from datetime import *
+from math import pow
 
 date_format = "%Y-%m-%d %H:%M:%S"
 
@@ -19,21 +20,12 @@ reaction_type_weights = {
 # Returns the multiplier that scales depending on how recently the action was performed
 def date_difference_rank_multiplier(action_date) -> float:
     current_date = datetime.today()
-    date_difference = current_date - action_date
+    day_difference = (current_date - action_date).days
 
-    multiplier = 1
-    if date_difference.days < 1:
-        multiplier *= 10
-    elif date_difference.days < 14:
-        multiplier *= 1
-    elif date_difference.days < 30:
-        multiplier *= 0.8
-    elif date_difference.days < 60:
-        multiplier *= 0.4
-    else:
-        multiplier *= 0.1
+    if day_difference <= 0:
+        return 70  # 1.8^(7-0) + 1/1 == 62.222
 
-    return multiplier
+    return pow(1.8, 7 - day_difference) + 1 / day_difference
 
 
 # Returns the comment affinity between the user & second user

@@ -11,29 +11,32 @@ class FeedStatus:
     message = ""
     relevance = 0
 
-    def __init__(self, message, relevance):
-        self.message = message
+    def __init__(self, status: dict, relevance):
+        self.message = "\nMessage: " + status['status_message'] \
+                       + "\nLink: " + status['status_link'] \
+                       + "\nPublished: " + str(status['status_published']) \
+                       + "\nAuthor: " + status['author']
         self.relevance = relevance
 
 
 # Returns the 10 most relevant statuses for the given user
-def get_feed(affinity_graph: networkx.DiGraph, user_name: str, statuses) -> list[FeedStatus]:
+def get_feed(graph: networkx.DiGraph, user_name: str, statuses: dict, word_count_map: dict) -> list[FeedStatus]:
     # Add the user to the graph if he is not in it
     try:
-        user = affinity_graph[user_name]
+        user = graph[user_name]
     except KeyError:
-        affinity_graph.add_node(user_name)
-        user = affinity_graph[user_name]
+        graph.add_node(user_name)
+        user = graph[user_name]
 
     feed = []
-    for status in statuses.values():
+    for status_id, status in statuses.items():
         # Add the author and an edge between the user and author (with weight = 0) to the graph if the author is missing
         author = status['author']
         try:
             second_user = user[author]
         except KeyError:
-            affinity_graph.add_node(author)
-            affinity_graph.add_edge(user_name, author, weight=0)
+            graph.add_node(author)
+            graph.add_edge(user_name, author, weight=0)
             second_user = user[author]
 
         status_popularity = status_popularity_rank(status['num_comments'], status['num_shares'], status['num_likes'],
@@ -41,9 +44,11 @@ def get_feed(affinity_graph: networkx.DiGraph, user_name: str, statuses) -> list
                                                    status['num_sads'], status['num_angrys'], status['num_special'])
         status_relevance = (second_user['weight'] + status_popularity) * date_difference_rank_multiplier(
             status['status_published'])
-        feed.append(FeedStatus(
-            "\nMessage: " + status['status_message'] + "\nLink: " + status['status_link'] + "\nPublished: " + str(
-                status['status_published']) + "\nAuthor: " + status['author'], status_relevance))
+
+        if word_count_map != {}:
+            status_relevance *= pow(word_count_map[status_id], 10)
+
+        feed.append(FeedStatus(status, status_relevance))
 
     # Sort the feed descending by relevance
     feed.sort(key=operator.attrgetter("relevance"), reverse=True)
@@ -108,10 +113,11 @@ def insert_data(graph, sentence_trie, statuses: dict):
     graph = affinity_graph.insert_data(graph, friends, comments, reactions, shares, statuses)
     print(f"Finished new data insertion in graph after {datetime.now() - timer} seconds.")
 
+    print("Adding new data to trie")
     timer = datetime.now()
     sentence_trie = insert_sentence_trie_data(sentence_trie, new_statuses)
     print(f"Finished new data insertion in trie after {datetime.now() - timer} seconds.")
-
+    print("\n")
     return graph, sentence_trie, statuses
 
 
@@ -138,6 +144,7 @@ def load_data():
     timer = datetime.now()
     sentence_trie = get_sentence_trie(statuses)
     print(f"Finished trie generation after {datetime.now() - timer} seconds.")
+    print("\n")
 
     return graph, sentence_trie, statuses
 
@@ -164,23 +171,30 @@ def run_search(graph, sentence_trie, username, statuses):
         else:
             if search_input == '':
                 continue
+
+            # A case-insensitive union search returns the number of words that a status contains from the given input
+            should_count_words = False
+
             # Case-sensitive phrase search
             if search_input[0] == '"' and search_input[-1] == '"':
                 search_ids = sentence_trie.search_phrase(search_input, statuses)
-            # Regular search (case-insensitive, disregards all non-alphabetical characters)
             else:
-                search_ids = sentence_trie.search_case_insensitive(search_input)
-                # search_ids = sentence_trie.query(search_input)
-
+                search_ids = sentence_trie.search_union_case_insensitive(search_input)
+                should_count_words = True
             print(f"Found {len(search_ids)} results.")
+
+            # Create a map of statuses that have been found when searching
             relevant_statuses = {}
             for status_id in search_ids:
                 if status_id in statuses:
                     relevant_statuses[status_id] = statuses[status_id]
 
-            feed = get_feed(graph, username, relevant_statuses)
-            print(f"Search feed size: {len(feed)}.")
+            if should_count_words:
+                feed = get_feed(graph, username, relevant_statuses, search_ids)
+            else:
+                feed = get_feed(graph, username, relevant_statuses, {})
 
+            print(f"Search feed size: {len(feed)}.")
             for status in feed:
                 print(status.message, "\nRelevance:", status.relevance)
 
@@ -191,7 +205,7 @@ def run():
 
     username = login()
     # Displays the feed for the current user
-    feed = get_feed(graph, username, statuses)
+    feed = get_feed(graph, username, statuses, {})
     print(f"Welcome, {username}. Here's your recommended feed:\n")
     for status in feed:
         print(status.message, "\nRelevance:", status.relevance)

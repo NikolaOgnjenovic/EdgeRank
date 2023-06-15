@@ -120,7 +120,7 @@ class Trie(object):
     def search_phrase(self, phrase, statuses):
         phrase = phrase[1:-1]  # Remove " from the beginning and end of the phrase
         phrase = filter_status_characters(phrase, False)  # Filter the characters, but leave uppercase characters
-        status_ids = self.search_case_insensitive(phrase)  # Do a case-insensitive search of the phrase
+        status_ids = self.search_intersection_case_insensitive(phrase)  # Do a case-insensitive search of the phrase
         phrase_words = phrase.split(' ')
 
         filtered_ids = []
@@ -146,17 +146,32 @@ class Trie(object):
                         break
 
                 if should_add:
+                    # filtered_ids.update({status_id: 1})
                     filtered_ids.append(status_id)
             except ValueError:
                 continue
 
         return filtered_ids
 
-    # Performs a case-insensitive search for the given phrase
-    def search_case_insensitive(self, phrase):
+    # Performs a case-insensitive intersection search for the given phrase
+    def search_intersection_case_insensitive(self, phrase):
         phrase_words = phrase.split(' ')
         status_ids = self.query(phrase_words[0])
         for i in range(1, len(phrase_words)):
             status_ids = status_ids.intersection(self.query(phrase_words[i]))
+
+        return status_ids
+
+    # Returns a dictionary which maps a status id to the number of words in the phrase that are in the status
+    def search_union_case_insensitive(self, phrase) -> dict:
+        phrase_words = phrase.split(' ')
+        status_ids: dict = {}
+        for word in phrase_words:
+            word_status_ids = list(self.query(word))
+            for status_id in word_status_ids:
+                if status_id in status_ids:
+                    status_ids[status_id] = status_ids[status_id] + 1
+                else:
+                    status_ids.update({status_id: 1})
 
         return status_ids
