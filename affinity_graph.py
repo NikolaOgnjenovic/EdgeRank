@@ -63,7 +63,6 @@ def reaction_affinity(user_name: str, second_user_name: str, reactions, statuses
         if status is not None and status['author'] == second_user_name:
             reaction_rank += reaction_type_weights[reaction['type_of_reaction']] * date_difference_rank_multiplier(
                 reaction['reacted'])
-            # reaction_rank += reaction_type_weight(reaction['type_of_reaction']) * date_difference_rank_multiplier(reaction['reacted'])
 
     return reaction_rank
 
@@ -92,7 +91,38 @@ def affinity(user_name: str, second_user_name: str, comments, reactions, shares,
     return comment_rank + reaction_rank + share_rank
 
 
-def create_graph(friends, comments, reactions, shares, statuses):
+def insert_data(graph, friends, comments, reactions, shares, statuses) -> networkx.DiGraph:
+    user_list = friends.keys()
+    # Create an edge between all users
+    for user_id in user_list:
+        for second_user_id in user_list:
+            # No need to create an edge between a user and himself
+            if user_id == second_user_id:
+                continue
+
+            if user_id not in graph:
+                graph.add_node(user_id)
+            if second_user_id not in graph:
+                graph.add_node(second_user_id)
+
+            user_affinity = affinity(user_id, second_user_id, comments, reactions, shares, statuses)
+
+            # If the second user is the user's friend, increase the affinity between them
+            user_affinity += (second_user_id in friends[user_id]) * 5000  # TODO: broj bolji
+
+            if user_affinity > 0:
+                if not graph.has_edge(user_id, second_user_id):
+                    graph.add_edge(user_id, second_user_id, weight=user_affinity)
+                else:
+                    graph[user_id][second_user_id]['weight'] += user_affinity
+
+    graph_file_obj = open("graph.obj", "wb")
+    pickle.dump(graph, graph_file_obj)
+    graph_file_obj.close()
+    return graph
+
+
+def create_graph(friends, comments, reactions, shares, statuses) -> networkx.DiGraph:
     # Weighted graph -> user A likes user B's posts but user B doesn't like user A's posts
     graph = networkx.DiGraph()
 

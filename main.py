@@ -1,6 +1,7 @@
 import operator
 import sys
 
+import affinity_graph
 from parse_files_dict import *
 from affinity_graph import *
 from search_trie_letters import *
@@ -51,6 +52,18 @@ def get_feed(affinity_graph: networkx.DiGraph, user_name: str, statuses) -> list
     return feed[:10]
 
 
+# Inserts additional data into a given sentence trie
+def insert_sentence_trie_data(sentence_trie: Trie, statuses: dict) -> Trie:
+    for status in statuses.values():
+        sentence_trie.insert(status['status_message'], status['status_id'])
+
+    trie_file_obj = open("trie.obj", "wb")
+    pickle.dump(sentence_trie, trie_file_obj)
+    trie_file_obj.close()
+    return sentence_trie
+
+
+# Returns a sentence trie from a file, creates a new one if not found
 def get_sentence_trie(statuses) -> Trie:
     try:
         trie_file_obj = open("trie.obj", "rb")
@@ -62,9 +75,6 @@ def get_sentence_trie(statuses) -> Trie:
     except FileNotFoundError:
         print("Trie not found in file")
         sentence_trie = Trie()
-        # sentence_trie.insert('rcat', 1)
-        # sentence_trie.insert('car', 2)
-        # sentence_trie.insert('bcar', 3)
         for status in statuses.values():
             sentence_trie.insert(status['status_message'], status['status_id'])
 
@@ -76,6 +86,36 @@ def get_sentence_trie(statuses) -> Trie:
         return sentence_trie
 
 
+# Inserts an additional dataset into the given graph, sentence trie and status dictionary
+def insert_data(graph, sentence_trie, statuses: dict):
+    print("Loading additional dataset")
+    timer = datetime.now()
+    friends = load_friends("dataset/friends.csv")
+    comments = load_comments("dataset/test_comments.csv")
+    reactions = load_reactions("dataset/test_reactions.csv")
+    shares = load_shares("dataset/test_shares.csv")
+    new_statuses = load_statuses("dataset/test_statuses.csv")
+    print(f"Finished additional dataset loading after {datetime.now() - timer} seconds.")
+
+    print("Adding new statuses")
+    timer = datetime.now()
+    for key, val in new_statuses.items():
+        statuses.update({key: val})
+    print(f"Finished adding new statuses after {datetime.now() - timer} seconds.")
+
+    print("Adding new data to graph")
+    timer = datetime.now()
+    graph = affinity_graph.insert_data(graph, friends, comments, reactions, shares, statuses)
+    print(f"Finished new data insertion in graph after {datetime.now() - timer} seconds.")
+
+    timer = datetime.now()
+    sentence_trie = insert_sentence_trie_data(sentence_trie, new_statuses)
+    print(f"Finished new data insertion in trie after {datetime.now() - timer} seconds.")
+
+    return graph, sentence_trie, statuses
+
+
+# Loads / generates the graph, sentence trie and status dictionary
 def load_data():
     print("Loading dataset")
     timer = datetime.now()
@@ -84,18 +124,22 @@ def load_data():
     reactions = load_reactions("dataset/reactions.csv")
     shares = load_shares("dataset/shares.csv")
     statuses = load_statuses("dataset/statuses.csv")
-    print(f"Finished loading dataset after {datetime.now() - timer} seconds.")
+    test_statuses = load_statuses("dataset/test_statuses.csv")
+    for key, val in test_statuses.items():
+        statuses.update({key: val})
+
+    print(f"Finished dataset loading after {datetime.now() - timer} seconds.")
 
     print("Loading graph")
     timer = datetime.now()
     graph = get_affinity_graph(friends, comments, reactions, shares, statuses)
-    print(f"Finished loading & graph generation after {datetime.now() - timer} seconds.")
+    print(f"Finished graph loading / generation after {datetime.now() - timer} seconds.")
 
     timer = datetime.now()
     sentence_trie = get_sentence_trie(statuses)
     print(f"Finished trie generation after {datetime.now() - timer} seconds.")
 
-    return (graph, sentence_trie, statuses)
+    return graph, sentence_trie, statuses
 
 
 def login():
@@ -103,15 +147,6 @@ def login():
     # for user in friends:
     #     print(user)
     username = input(">>")
-    # First 10 users:
-    # Sarina Hudgens
-    # Angel Harmison
-    # Margaret McMow
-    # Michael Byrne
-    # Shirley Bell
-    # Jerry Kirschling
-    # Vicky Gutierrez
-    # Patricia Sanguiliano
     return username
 
 
@@ -119,29 +154,48 @@ def run_search(graph, sentence_trie, username, statuses):
     should_run = True
     while should_run:
         print("")
-        search_term = input("Enter the term that you wish to search for\n>>")
-        search_term_status_ids = sentence_trie.query(search_term)
-        print(f"Found {len(search_term_status_ids)} results with the search term {search_term}.")
+        search_input = input("Enter the term that you wish to search for\n>>")
+        # Word autocompletion
+        if search_input[-1] == '*':
+            autocompleted_words = sentence_trie.autocomplete(search_input)
+            print("Autocompleted words:")
+            for word in autocompleted_words:
+                print(word)
+        else:
+            if search_input == '':
+                continue
+            # Case-sensitive phrase search
+            if search_input[0] == '"' and search_input[-1] == '"':
+                search_ids = sentence_trie.search_phrase(search_input, statuses)
+            # Regular search (case-insensitive, disregards all non-alphabetical characters)
+            else:
+                search_ids = sentence_trie.search_case_insensitive(search_input)
+                # search_ids = sentence_trie.query(search_input)
 
-        relevant_statuses = {}
-        for status_id in search_term_status_ids:
-            if status_id in statuses:
-                relevant_statuses[status_id] = statuses[status_id]
+            print(f"Found {len(search_ids)} results.")
+            relevant_statuses = {}
+            for status_id in search_ids:
+                if status_id in statuses:
+                    relevant_statuses[status_id] = statuses[status_id]
 
-        feed = get_feed(graph, username, relevant_statuses)
-        print(f"Search feed size: {len(feed)}.")
+            feed = get_feed(graph, username, relevant_statuses)
+            print(f"Search feed size: {len(feed)}.")
 
-        for status in feed:
-            print(status.message, "\nRelevance:", status.relevance)
+            for status in feed:
+                print(status.message, "\nRelevance:", status.relevance)
 
 
 def run():
     graph, sentence_trie, statuses = load_data()
+    # insert_data(graph, sentence_trie, statuses)
+
     username = login()
+    # Displays the feed for the current user
     feed = get_feed(graph, username, statuses)
     print(f"Welcome, {username}. Here's your recommended feed:\n")
     for status in feed:
         print(status.message, "\nRelevance:", status.relevance)
+
     run_search(graph, sentence_trie, username, statuses)
 
 
