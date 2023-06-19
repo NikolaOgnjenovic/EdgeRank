@@ -105,19 +105,20 @@ def insert_data(graph, friends, comments, reactions, shares, statuses) -> networ
 
             # If the second user is the user's friend, increase the affinity between them
             user_affinity += (second_user_id in friends[user_id]) * 5000
-            
+
+            # This is highly memory inefficient
             # If the second user is a friend of any user's friend, increase the affinity between them
-            for friend in friends[user_id]:
-                should_break = False
-                if friend not in friends:
-                    continue
-                for friends_friend in friends[friend]:
-                    if second_user_id == friends_friend:
-                        user_affinity += 2500
-                        should_break = True
-                        break
-                if should_break:
-                    break
+            # for friend in friends[user_id]:
+            #     should_break = False
+            #     if friend not in friends:
+            #         continue
+            #     for friends_friend in friends[friend]:
+            #         if second_user_id == friends_friend:
+            #             user_affinity += 2500
+            #             should_break = True
+            #             break
+            #     if should_break:
+            #         break
 
             if user_affinity > 0:
                 if not graph.has_edge(user_id, second_user_id):
