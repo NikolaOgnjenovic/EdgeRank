@@ -4,7 +4,7 @@ import sys
 import affinity_graph
 from parse_files_dict import *
 from affinity_graph import *
-from search_trie_letters import *
+from search_trie import *
 
 
 class FeedStatus:
@@ -126,13 +126,13 @@ def load_data():
     print("Loading dataset")
     timer = datetime.now()
     friends = load_friends("dataset/friends.csv")
-    comments = load_comments("dataset/comments.csv")
-    reactions = load_reactions("dataset/reactions.csv")
-    shares = load_shares("dataset/shares.csv")
-    statuses = load_statuses("dataset/statuses.csv")
-    test_statuses = load_statuses("dataset/test_statuses.csv")
-    for key, val in test_statuses.items():
-        statuses.update({key: val})
+    comments = load_comments("dataset/original_comments.csv")
+    reactions = load_reactions("dataset/original_reactions.csv")
+    shares = load_shares("dataset/original_shares.csv")
+    statuses = load_statuses("dataset/original_statuses.csv")
+    # test_statuses = load_statuses("dataset/test_statuses.csv")
+    # for key, val in test_statuses.items():
+    #     statuses.update({key: val})
 
     print(f"Finished dataset loading after {datetime.now() - timer} seconds.")
 
@@ -150,9 +150,7 @@ def load_data():
 
 
 def login():
-    print("Pick a username from the list to view the user's feed:")
-    # for user in friends:
-    #     print(user)
+    print("Pick a username from the user list to view the user's feed:")
     username = input(">>")
     return username
 
@@ -201,6 +199,8 @@ def run_search(graph, sentence_trie, username, statuses):
 
 def run():
     graph, sentence_trie, statuses = load_data()
+
+    # Uncomment this line and change the file paths in insert_data to insert additional data into the graph and trie
     # insert_data(graph, sentence_trie, statuses)
 
     username = login()

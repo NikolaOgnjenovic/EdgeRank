@@ -8,10 +8,10 @@ date_format = "%Y-%m-%d %H:%M:%S"
 
 reaction_type_weights = {
     "hahas": 10,
-    "loves": 20,
-    "sads": 15,
-    "angrys": 10,
-    "wows": 20,
+    "loves": 10,
+    "sads": 5,
+    "angrys": 25,
+    "wows": 25,
     "likes": 5,
     "special": 30
 }
@@ -38,7 +38,7 @@ def comment_affinity(user_name: str, second_user_name: str, comments, statuses) 
     for comment in comments.get(user_name):
         status = statuses.get(comment['status_id'])
         if status is not None and status['author'] == second_user_name:
-            comment_rank += 30 * date_difference_rank_multiplier(comment['comment_published'])
+            comment_rank += 40 * date_difference_rank_multiplier(comment['comment_published'])
 
     return comment_rank
 
@@ -69,7 +69,7 @@ def share_affinity(user_name: str, second_user_name: str, shares, statuses) -> f
     for share in shares.get(user_name):
         status = statuses.get(share['status_id'])
         if status is not None and status['author'] == second_user_name:
-            share_rank += 50 * date_difference_rank_multiplier(share['status_shared'])
+            share_rank += 60 * date_difference_rank_multiplier(share['status_shared'])
 
     return share_rank
 
@@ -84,23 +84,40 @@ def affinity(user_name: str, second_user_name: str, comments, reactions, shares,
 
 
 def insert_data(graph, friends, comments, reactions, shares, statuses) -> networkx.DiGraph:
+    if graph is None:
+        # Weighted graph -> user A likes user B's posts but user B doesn't like user A's posts
+        graph = networkx.DiGraph()
+
     user_list = friends.keys()
     # Create an edge between all users
     for user_id in user_list:
+        if user_id not in graph:
+            graph.add_node(user_id)
         for second_user_id in user_list:
             # No need to create an edge between a user and himself
             if user_id == second_user_id:
                 continue
 
-            if user_id not in graph:
-                graph.add_node(user_id)
             if second_user_id not in graph:
                 graph.add_node(second_user_id)
 
             user_affinity = affinity(user_id, second_user_id, comments, reactions, shares, statuses)
 
             # If the second user is the user's friend, increase the affinity between them
-            user_affinity += (second_user_id in friends[user_id]) * 5000  # TODO: broj bolji
+            user_affinity += (second_user_id in friends[user_id]) * 5000
+            
+            # If the second user is a friend of any user's friend, increase the affinity between them
+            for friend in friends[user_id]:
+                should_break = False
+                if friend not in friends:
+                    continue
+                for friends_friend in friends[friend]:
+                    if second_user_id == friends_friend:
+                        user_affinity += 2500
+                        should_break = True
+                        break
+                if should_break:
+                    break
 
             if user_affinity > 0:
                 if not graph.has_edge(user_id, second_user_id):
@@ -108,41 +125,52 @@ def insert_data(graph, friends, comments, reactions, shares, statuses) -> networ
                 else:
                     graph[user_id][second_user_id]['weight'] += user_affinity
 
-    graph_file_obj = open("graph.obj", "wb")
-    pickle.dump(graph, graph_file_obj)
-    graph_file_obj.close()
     return graph
 
 
-def create_graph(friends, comments, reactions, shares, statuses) -> networkx.DiGraph:
-    # Weighted graph -> user A likes user B's posts but user B doesn't like user A's posts
-    graph = networkx.DiGraph()
-
-    user_list = friends.keys()
-    # Create an edge between all users
-    for user_id in user_list:
-        for second_user_id in user_list:
-            # No need to create an edge between a user and himself
-            if user_id == second_user_id:
-                continue
-
-            graph.add_node(user_id)
-            graph.add_node(second_user_id)
-
-            user_affinity = affinity(user_id, second_user_id, comments, reactions, shares, statuses)
-
-            # If the second user is the user's friend, increase the affinity between them
-            user_affinity += (second_user_id in friends[user_id]) * 5000  # TODO: broj bolji
-
-            if user_affinity > 0:
-                graph.add_edge(user_id, second_user_id, weight=user_affinity)
-
-    return graph
+# def create_graph(friends, comments, reactions, shares, statuses) -> networkx.DiGraph:
+#     graph = networkx.DiGraph()
+#
+#     user_list = friends.keys()
+#     # Create an edge between all users
+#     # 1,2,3,4,5,6
+#     for user_id in user_list:
+#         graph.add_node(user_id)
+#
+#         for second_user_id in user_list:
+#             # No need to create an edge between a user and himself
+#             if user_id == second_user_id:
+#                 continue
+#
+#             if second_user_id not in graph:
+#                 graph.add_node(second_user_id)
+#
+#             user_affinity = affinity(user_id, second_user_id, comments, reactions, shares, statuses)
+#
+#             # If the second user is the user's friend, increase the affinity between them
+#             user_affinity += (second_user_id in friends[user_id]) * 5000
+#             # If the second user is a friend of any user's friend, increase the affinity between them
+#             for friend in friends[user_id]:
+#                 should_break = False
+#                 if friend not in friends:
+#                     continue
+#                 for friends_friend in friends[friend]:
+#                     if second_user_id == friends_friend:
+#                         user_affinity += 2500
+#                         should_break = True
+#                         break
+#                 if should_break:
+#                     break
+#
+#             if user_affinity > 0:
+#                 graph.add_edge(user_id, second_user_id, weight=user_affinity)
+#
+#     return graph
 
 
 def status_popularity_rank(num_comments, num_shares, num_likes, num_loves, num_wows, num_hahas, num_sads, num_angrys,
                            num_special):
-    return num_comments * 2 + num_shares * 20 + num_likes * 5 + num_loves * 30 + num_wows * 20 + num_hahas * 10 + num_sads * 10 + num_angrys * 20 + num_special * 10
+    return num_comments * 40 + num_shares * 10 + num_likes * 5 + num_loves * 10 + num_wows * 25 + num_hahas * 10 + num_sads * 5 + num_angrys * 25 + num_special * 30
 
 
 def get_affinity_graph(friends, comments, reactions, shares, statuses):
@@ -155,7 +183,7 @@ def get_affinity_graph(friends, comments, reactions, shares, statuses):
         return graph
     except FileNotFoundError:
         print("Graph not found in file")
-        graph = create_graph(friends, comments, reactions, shares, statuses)
+        graph = insert_data(None, friends, comments, reactions, shares, statuses)
         graph_file_obj = open("graph.obj", "wb")
         pickle.dump(graph, graph_file_obj)
         graph_file_obj.close()
