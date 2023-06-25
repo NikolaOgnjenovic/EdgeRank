@@ -46,7 +46,7 @@ def get_feed(graph: networkx.DiGraph, user_name: str, statuses: dict, word_count
             status['status_published'])
 
         if word_count_map != {}:
-            status_relevance *= pow(word_count_map[status_id], 10)
+            status_relevance *= pow(word_count_map[status_id], 5)
 
         feed.append(FeedStatus(status, status_relevance))
 
@@ -92,7 +92,7 @@ def get_sentence_trie(statuses) -> Trie:
 
 
 # Inserts an additional dataset into the given graph, sentence trie and status dictionary
-def insert_data(graph, sentence_trie, statuses: dict):
+def insert_data(graph, sentence_trie, statuses: dict, statuses_by_users):
     print("Loading additional dataset")
     timer = datetime.now()
     friends = load_friends("dataset/friends.csv")
@@ -100,17 +100,20 @@ def insert_data(graph, sentence_trie, statuses: dict):
     reactions = load_reactions("dataset/test_reactions.csv")
     shares = load_shares("dataset/test_shares.csv")
     new_statuses = load_statuses("dataset/test_statuses.csv")
+    new_statuses_by_users = load_statuses_by_users("dataset/test_statuses.csv")
     print(f"Finished additional dataset loading after {datetime.now() - timer} seconds.")
 
     print("Adding new statuses")
     timer = datetime.now()
     for key, val in new_statuses.items():
         statuses.update({key: val})
+    for key, val in new_statuses_by_users.items():
+        statuses_by_users.update({key: val})
     print(f"Finished adding new statuses after {datetime.now() - timer} seconds.")
 
     print("Adding new data to graph")
     timer = datetime.now()
-    graph = affinity_graph.insert_data(graph, friends, comments, reactions, shares, statuses)
+    graph = affinity_graph.insert_data(graph, friends, comments, reactions, shares, statuses, statuses_by_users)
     print(f"Finished new data insertion in graph after {datetime.now() - timer} seconds.")
 
     print("Adding new data to trie")
@@ -130,15 +133,13 @@ def load_data():
     reactions = load_reactions("dataset/original_reactions.csv")
     shares = load_shares("dataset/original_shares.csv")
     statuses = load_statuses("dataset/original_statuses.csv")
-    # test_statuses = load_statuses("dataset/test_statuses.csv")
-    # for key, val in test_statuses.items():
-    #     statuses.update({key: val})
+    statuses_by_users = load_statuses_by_users("dataset/original_statuses.csv")
 
     print(f"Finished dataset loading after {datetime.now() - timer} seconds.")
 
     print("Loading graph")
     timer = datetime.now()
-    graph = get_affinity_graph(friends, comments, reactions, shares, statuses)
+    graph = get_affinity_graph(friends, comments, reactions, shares, statuses, statuses_by_users)
     print(f"Finished graph loading / generation after {datetime.now() - timer} seconds.")
 
     timer = datetime.now()
@@ -146,7 +147,7 @@ def load_data():
     print(f"Finished trie generation after {datetime.now() - timer} seconds.")
     print("\n")
 
-    return graph, sentence_trie, statuses
+    return graph, sentence_trie, statuses, statuses_by_users
 
 
 def login():
@@ -198,10 +199,10 @@ def run_search(graph, sentence_trie, username, statuses):
 
 
 def run():
-    graph, sentence_trie, statuses = load_data()
+    graph, sentence_trie, statuses, statuses_by_users = load_data()
 
     # Uncomment this line and change the file paths in insert_data to insert additional data into the graph and trie
-    # insert_data(graph, sentence_trie, statuses)
+    # insert_data(graph, sentence_trie, statuses, statuses_by_users)
 
     username = login()
     # Displays the feed for the current user

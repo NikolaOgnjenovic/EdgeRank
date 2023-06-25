@@ -15,6 +15,7 @@ def load_friends(path):
     return output_data
 
 
+# Returns a dictionary where the key is a user_id and the value is a list of the user's comments
 def load_comments(path):
     output_data = {}
     with open(path) as file:
@@ -83,6 +84,7 @@ def load_comments(path):
     return output_data
 
 
+# Returns a dictionary where the key is a status id and the value is the status data
 def load_statuses(path):
     extracted_statuses = {}
     with open(path) as file:
@@ -151,6 +153,79 @@ def load_statuses(path):
     return extracted_statuses
 
 
+# Returns a dictionary where the key is a user_id and the value is a dictionary of statuses that the user has posted
+def load_statuses_by_users(path):
+    extracted_statuses = {}
+    with open(path) as file:
+        lines = file.readlines()
+        comment = ""
+        paired_ellipses = True
+
+        for index in range(1, len(lines)):
+            line = lines[index]
+
+            if line == "\n":
+                comment += line
+                continue
+
+            # if line[-1] == "\n":
+            #     line = line[:-1]
+            line = line.strip()
+
+            previous_index = -1
+
+            while True:
+                index = line.index("\"", previous_index + 1) if "\"" in line[previous_index + 1:] else -1
+                if index == -1:
+                    break
+                paired_ellipses = not paired_ellipses
+                previous_index = index
+
+            comment += line
+            if not paired_ellipses:
+                continue
+
+            data = comment.split(",")
+            n = len(data)
+
+            if n < 16:
+                raise Exception("Status does not contain necessary data.")
+            elif n > 16:
+                comment_text = "".join(data[1:n - 14])
+            else:
+                comment_text = data[1]
+
+            content = {
+                "status_id": data[0],
+                "status_message": comment_text,
+                "status_type": data[n - 14],
+                "status_link": data[n - 13],
+                "status_published": datetime.datetime.strptime(data[n - 12], "%Y-%m-%d %H:%M:%S"),
+                "author": data[n - 11],
+                "num_reactions": int(data[n - 10]),
+                "num_comments": int(data[n - 9]),
+                "num_shares": int(data[n - 8]),
+                "num_likes": int(data[n - 7]),
+                "num_loves": int(data[n - 6]),
+                "num_wows": int(data[n - 5]),
+                "num_hahas": int(data[n - 4]),
+                "num_sads": int(data[n - 3]),
+                "num_angrys": int(data[n - 2]),
+                "num_special": int(data[n - 1])
+            }
+
+            if data[n - 11] not in extracted_statuses:
+                extracted_statuses[data[n - 11]] = {}
+
+            extracted_statuses[data[n - 11]][data[0]] = content
+
+            comment = ""
+            paired_ellipses = True
+
+    return extracted_statuses
+
+
+# Returns a dictionary where the key is a user_id and the value is a list of the user's shares
 def load_shares(path):
     shares = {}
     with open(path) as file:
@@ -171,6 +246,7 @@ def load_shares(path):
     return shares
 
 
+# Returns a dictionary where the key is a user_id and the value is a list of the user's reactions
 def load_reactions(path):
     reactions = {}
     with open(path) as file:

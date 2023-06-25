@@ -3,7 +3,7 @@ class Node:
         self.letter = letter
         self.children = {}
         self.counter = 0  # Indicates how many times the sentence has been inserted (parent -> child -> child)
-        self.status_ids: set[str] = set()  # statusi koji sadrze tu rec
+        self.status_ids: set[str] = set()
         self.is_terminal: bool = False
 
 
@@ -21,6 +21,33 @@ def filter_status_characters(status: str, to_lower: bool) -> str:
     return filtered_status
 
 
+# A pattern searching function that uses Bad Character Heuristic of Boyer Moore Algorithm
+def has_phrase(text: str, pattern: str) -> bool:
+    text_len = len(text)
+    pattern_len = len(pattern)
+    if pattern_len == 0:
+        return True
+
+    last = {}
+    for k in range(pattern_len):
+        last[pattern[k]] = k
+
+    i = pattern_len - 1
+    k = pattern_len - 1
+    while i < text_len:
+        if text[i] == pattern[k]:
+            if k == 0:
+                return True
+            else:
+                i -= 1
+                k -= 1
+        else:
+            j = last.get(text[i], -1)
+            i += pattern_len - min(k, j + 1)
+            k = pattern_len - 1
+    return False
+
+
 class Trie(object):
     def __init__(self):
         """
@@ -28,14 +55,8 @@ class Trie(object):
         """
         self.root = Node('')
 
-        # A hash map of nodes that represent roots of sub-tries#
-        # key -> letter, val -> list[nodes which hold the given key]
-        self.letter_hash: dict[str: list[Node]] = {}
-
     def insert(self, status, status_id):
         """Inserts a status into the trie"""
-        # node = self.root
-
         # Loop through each word in the sentence
         status = filter_status_characters(status, True)
         words = status.split(' ')
@@ -50,9 +71,6 @@ class Trie(object):
                     new_node = Node(word[i])
                     node.children[word[i]] = new_node
                     node = new_node
-                    if word[i] not in self.letter_hash:
-                        self.letter_hash.update({word[i]: [node]})
-                    self.letter_hash[word[i]].append(node)
 
                 node.status_ids.add(status_id)
                 node.counter += 1  # Increase the times the node has been stored in the trie
@@ -83,13 +101,14 @@ class Trie(object):
 
         # If the first letter is not in the letter hash map, return an empty set
         ids = set()
-        if letters[0] not in self.letter_hash:
-            return ids
 
         # Iterate through every node in list of the first letter hash
-        nodes = self.letter_hash[letters[0]]
-        for node in nodes:
-            node_ids = self.dfs(letters, 1, node)
+        nodes = self.root.children
+        for letter, node in nodes.items():
+            if letters[0] == letter:
+                node_ids = self.dfs(letters, 1, node)
+            else:
+                node_ids = self.dfs(letters, 0, node)
             if node_ids:
                 ids.update(node_ids)
         return ids
@@ -97,7 +116,6 @@ class Trie(object):
     # Returns a list of autocompleted search terms
     def autocomplete(self, prefix):
         prefix = filter_status_characters(prefix, True).replace(' ', '')
-        # prefix = prefix[:-1]  # Remove the * from the search term
         node = self.root
         for char in prefix:
             if char not in node.children:
@@ -129,30 +147,32 @@ class Trie(object):
 
         filtered_ids = []
         for status_id in status_ids:
-            if status_id not in statuses:
-                continue
-
-            # Filter the status message and split it into a list of words
-            status_message = statuses[status_id]['status_message']
-            status_message = filter_status_characters(status_message, False)
-            status_words: list[str] = status_message.split(' ')
-
-            try:
-                # Find the first word of the phrase in the status message
-                first_word_index = status_words.index(phrase_words[0])
-                should_add = True
-
-                # Iterate through the remaining words in the phrase
-                for i in range(1, len(phrase_words)):
-                    # If the next word in the phrase is not the next word in the status, skip the current status
-                    if status_words.index(phrase_words[i]) != first_word_index + i:
-                        should_add = False
-                        break
-
-                if should_add:
-                    filtered_ids.append(status_id)
-            except ValueError:
-                continue
+            if has_phrase(statuses[status_id]['status_message'], phrase):
+                filtered_ids.append(status_id)
+            # if status_id not in statuses:
+            #     continue
+            #
+            # # Filter the status message and split it into a list of words
+            # status_message = statuses[status_id]['status_message']
+            # status_message = filter_status_characters(status_message, False)
+            # status_words: list[str] = status_message.split(' ')
+            #
+            # try:
+            #     # Find the first word of the phrase in the status message
+            #     first_word_index = status_words.index(phrase_words[0])
+            #     should_add = True
+            #
+            #     # Iterate through the remaining words in the phrase
+            #     for i in range(1, len(phrase_words)):
+            #         # If the next word in the phrase is not the next word in the status, skip the current status
+            #         if status_words.index(phrase_words[i]) != first_word_index + i:
+            #             should_add = False
+            #             break
+            #
+            #     if should_add:
+            #         filtered_ids.append(status_id)
+            # except ValueError:
+            #     continue
 
         return filtered_ids
 
