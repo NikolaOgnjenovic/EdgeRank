@@ -13,7 +13,7 @@ def filter_status_characters(status: str, to_lower: bool) -> str:
     if to_lower:
         status = status.lower()
     for char in status:
-        if (not to_lower and (65 <= ord(char) <= 90)) or (97 <= ord(char) <= 122) or char == ' ':
+        if (not to_lower and (65 <= ord(char) <= 90)) or (97 <= ord(char) <= 122) or char == ' ' or char.isnumeric():
             filtered_status += char
         else:
             filtered_status += ' '
@@ -143,36 +143,11 @@ class Trie(object):
         phrase = phrase[1:-1]  # Remove " from the beginning and end of the phrase
         phrase = filter_status_characters(phrase, False)  # Filter the characters, but leave uppercase characters
         status_ids = self.search_intersection_case_insensitive(phrase)  # Do a case-insensitive search of the phrase
-        phrase_words = phrase.split(' ')
 
         filtered_ids = []
         for status_id in status_ids:
-            if has_phrase(statuses[status_id]['status_message'], phrase):
+            if has_phrase(statuses[status_id]['status_message'], phrase + ' '):
                 filtered_ids.append(status_id)
-            # if status_id not in statuses:
-            #     continue
-            #
-            # # Filter the status message and split it into a list of words
-            # status_message = statuses[status_id]['status_message']
-            # status_message = filter_status_characters(status_message, False)
-            # status_words: list[str] = status_message.split(' ')
-            #
-            # try:
-            #     # Find the first word of the phrase in the status message
-            #     first_word_index = status_words.index(phrase_words[0])
-            #     should_add = True
-            #
-            #     # Iterate through the remaining words in the phrase
-            #     for i in range(1, len(phrase_words)):
-            #         # If the next word in the phrase is not the next word in the status, skip the current status
-            #         if status_words.index(phrase_words[i]) != first_word_index + i:
-            #             should_add = False
-            #             break
-            #
-            #     if should_add:
-            #         filtered_ids.append(status_id)
-            # except ValueError:
-            #     continue
 
         return filtered_ids
 
